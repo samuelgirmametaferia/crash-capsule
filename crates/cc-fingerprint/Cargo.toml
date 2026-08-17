@@ -1,0 +1,15 @@
+[package]
+name = "cc-fingerprint"
+description = "Deterministic strict and family fingerprints for Crash Capsule."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cc-canonical = { workspace = true }
+sha2 = { workspace = true }
+
+[lints]
+workspace = true

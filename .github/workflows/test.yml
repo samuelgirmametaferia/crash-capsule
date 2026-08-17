@@ -1,0 +1,28 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --all-features
+
+  # Building for a 32-bit target catches the usize assumptions that a capsule decoder must not
+  # make, since it parses hostile input with 64-bit declared lengths.
+  cross:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: rustup target add i686-unknown-linux-gnu
+      - run: sudo apt-get update && sudo apt-get install -y gcc-multilib
+      - run: cargo build --workspace --target i686-unknown-linux-gnu

@@ -1,0 +1,135 @@
+; Crash Capsule wire format, schema 1.0 (normative).
+;
+; Encoding rules, in addition to this grammar:
+;
+;   1. Deterministic CBOR only: definite lengths, shortest-form arguments, map keys
+;      sorted bytewise on their encoded form, no duplicate keys.
+;   2. No tags, no floats, no indefinite-length items, no simple values other than
+;      `true`, `false` and `null`.
+;   3. Decoders MUST bound depth, item count, string length and total input before
+;      allocating; the reference limits are in `crates/cc-canonical/src/decode.rs`.
+;   4. Unknown non-critical keys MUST be ignored, and SHOULD be retained when
+;      forwarding. A reader that does not understand a bit set in `critical_features`
+;      MUST reject the capsule; it MUST NOT interpret it partially.
+;   5. Adding a key is a `schema_minor` change. Changing a key's number, type or
+;      lowering its privacy class is a `schema_major` change.
+;
+; Integer keys are normative and come from `specification/registry.toml`.
+
+capsule = {
+  0  => uint,             ; schema_major
+  1  => uint,             ; schema_minor
+  2  => profile-id,
+  3  => bstr .size 16,    ; capsule_id, random per incident, never hardware-derived
+  4  => source-kind,
+  5  => severity,
+  6  => component,
+  7  => system,
+  8  => event,
+  9  => [* frame],        ; most recent frame first
+  10 => [* evidence],     ; descending diagnostic priority is conventional, not required
+  11 => fingerprints,
+  12 => privacy-manifest,
+  13 => uint,             ; critical_features bitmap
+  ? 14 => time-info,
+  ? 15 => routing-hints,
+  * uint => any           ; unknown non-critical extensions
+}
+
+profile-id  = 0 / 1 / 2 / 3 / 4   ; panic-minimal, visual-small, visual-standard,
+                                  ; visual-extended, local-full
+source-kind = 0 / 1 / 2 / 3 / 4 / 5
+severity    = 0 / 1 / 2 / 3 / 4
+
+component = {
+  0 => uint,        ; kind: 0 kernel, 1 kernel-module, 2 package, 3 application, 4 service
+  ? 1 => tstr,      ; package
+  ? 2 => tstr,      ; version
+  ? 3 => bstr,      ; build_id
+  ? 4 => tstr,      ; executable basename only, never a path
+  ? 5 => tstr,      ; module
+  ? 6 => tstr,      ; subsystem
+  * uint => any
+}
+
+system = {
+  0 => tstr,        ; architecture
+  ? 1 => tstr,      ; distro_family
+  ? 2 => tstr,      ; distro_release
+  ? 3 => tstr,      ; kernel_release
+  ? 4 => bstr,      ; kernel_build_id
+  ? 5 => uint,      ; taint mask
+  ? 6 => hardware,
+  * uint => any
+}
+
+; Coarse classes only. Serial numbers, machine UUIDs, motherboard identifiers and any
+; other persistent device identity MUST NOT appear here.
+hardware = {
+  ? 0 => tstr,      ; cpu_family
+  ? 1 => tstr,      ; gpu_class
+  ? 2 => [* tstr],  ; pci_ids, "vendor:device"
+  ? 3 => tstr,      ; firmware_version
+  * uint => any
+}
+
+event = {
+  0 => failure-class,
+  ? 1 => int,       ; signal number or exit status
+  ? 2 => tstr,      ; enumerated reason, never free-form log text
+  ? 3 => uint,      ; occurrence-local sequence
+  * uint => any
+}
+
+failure-class = 0 / 1 / 2 / 3 / 4 / 5 / 6 / 7
+
+; Absolute virtual addresses, ASLR/KASLR slides and boot-local pointers MUST NOT be
+; represented. `offset` is module-relative.
+frame = {
+  ? 0 => bstr,      ; build_id
+  ? 1 => tstr,      ; normalised symbol
+  ? 2 => uint,      ; module-relative offset
+  ? 3 => tstr,      ; module
+  * uint => any
+}
+
+evidence = {
+  0 => evidence-kind,
+  1 => privacy-class,   ; producer declaration; effective class is max(floor, this)
+  2 => uint,            ; priority; lower is dropped first by the budget
+  3 => any,             ; payload, interpreted per kind
+  ? 4 => bstr,          ; source_hash
+  * uint => any
+}
+
+evidence-kind = 0 / 1 / 2 / 3 / 4 / 5
+privacy-class = 0 / 1 / 2 / 3 / 4
+
+fingerprints = {
+  0 => bstr .size 32,   ; strict
+  1 => bstr .size 32,   ; family
+  ? 2 => bstr .size 32, ; evidence binding
+  * uint => any
+}
+
+privacy-manifest = {
+  0 => privacy-class,   ; highest effective class present
+  1 => [* uint],        ; included category ids
+  2 => [* uint],        ; excluded category ids
+  3 => uint,            ; redaction count
+  4 => uint,            ; evidence items dropped by the budget
+  * uint => any
+}
+
+; Deliberately coarse: a precise timestamp is a correlation handle.
+time-info = {
+  ? 0 => uint,      ; uptime bucket
+  ? 1 => uint,      ; days since the Unix epoch
+  * uint => any
+}
+
+routing-hints = {
+  ? 0 => tstr,      ; subsystem
+  ? 1 => tstr,      ; upstream project identifier
+  * uint => any
+}

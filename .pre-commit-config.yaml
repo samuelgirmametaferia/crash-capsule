@@ -1,0 +1,36 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^specification/test-vectors/
+      - id: end-of-file-fixer
+        exclude: ^specification/test-vectors/
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=256]
+
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --all --
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      # The corpus is generated; regenerate it rather than letting it drift from the encoder.
+      - id: cc-vectors
+        name: regenerate specification corpus
+        entry: cargo run -q -p cc-vectors
+        language: system
+        files: ^(crates/|specification/registry\.toml)
+        pass_filenames: false
