@@ -1,0 +1,693 @@
+# Crash Capsule field and privacy registry (normative, machine-readable).
+#
+# This file is the single source of truth for:
+#   * the integer keys used on the wire,
+#   * the MINIMUM privacy class of every standard field,
+#   * profile size budgets and the maximum privacy class each profile may carry.
+#
+# `crates/cc-schema/build.rs` generates Rust constants and lookup tables from this
+# file, so the registry and the implementation cannot drift. Producers may RAISE a
+# field's class but never lower it:
+#
+#     effective_class = max(schema_minimum_class, producer_declared_class)
+#
+# Adding a field is a `schema_minor` change. Changing a key, a type or lowering a
+# class is a `schema_major` change and requires new test vectors in the same PR.
+
+schema_major = 1
+schema_minor = 0
+
+# ---------------------------------------------------------------------------
+# Privacy classes
+# ---------------------------------------------------------------------------
+
+[[class]]
+id = 0
+name = "P0"
+label = "Public diagnostic"
+description = "Normally safe to disclose: schema version, failure class, versions, function names."
+
+[[class]]
+id = 1
+name = "P1"
+label = "Pseudonymous / low-risk diagnostic"
+description = "Can contribute to fingerprinting or device profiling: coarse hardware IDs, module set, distro, taint."
+
+[[class]]
+id = 2
+name = "P2"
+label = "Personal-context risk"
+description = "Likely to identify user or system: hostnames, IP addresses, user paths, process arguments. Redacted or tokenised by default."
+
+[[class]]
+id = 3
+name = "P3"
+label = "Secret-risk data"
+description = "May contain credentials or private content: environment, arbitrary log text, headers. Omitted unless explicitly justified."
+
+[[class]]
+id = 4
+name = "P4"
+label = "Restricted artifact"
+description = "Essentially uncontrolled memory or content: core dumps, process memory, full journals. Never optical by default."
+
+# ---------------------------------------------------------------------------
+# Profiles
+#
+# `max_bytes` applies AFTER redaction and compression but BEFORE outer FEC.
+# `max_class` is the highest effective class a field may carry and still be
+# emitted under the profile; anything above is dropped by the evidence budget.
+# ---------------------------------------------------------------------------
+
+[[profile]]
+id = 0
+name = "panic-minimal"
+target_bytes = 1536
+max_bytes = 2560
+max_class = "P1"
+description = "One static QR rendered from panic context."
+
+[[profile]]
+id = 1
+name = "visual-small"
+target_bytes = 4096
+max_bytes = 8192
+max_class = "P1"
+description = "Fast multi-pass optical transfer."
+
+[[profile]]
+id = 2
+name = "visual-standard"
+target_bytes = 12288
+max_bytes = 16384
+max_class = "P1"
+description = "Default rich optical report."
+
+[[profile]]
+id = 3
+name = "visual-extended"
+target_bytes = 32768
+max_bytes = 32768
+max_class = "P2"
+description = "Explicitly slower optical capture."
+
+[[profile]]
+id = 4
+name = "local-full"
+target_bytes = 262144
+max_bytes = 262144
+max_class = "P3"
+description = "Disk or network transport only; never rendered optically."
+
+# ---------------------------------------------------------------------------
+# Source kinds, failure classes and evidence kinds
+# ---------------------------------------------------------------------------
+
+[[source_kind]]
+id = 0
+name = "unknown"
+[[source_kind]]
+id = 1
+name = "kernel-panic"
+[[source_kind]]
+id = 2
+name = "kernel-oops"
+[[source_kind]]
+id = 3
+name = "userspace-crash"
+[[source_kind]]
+id = 4
+name = "service-failure"
+[[source_kind]]
+id = 5
+name = "boot-failure"
+
+[[failure_class]]
+id = 0
+name = "unknown"
+[[failure_class]]
+id = 1
+name = "null-dereference"
+[[failure_class]]
+id = 2
+name = "invalid-access"
+[[failure_class]]
+id = 3
+name = "assertion"
+[[failure_class]]
+id = 4
+name = "abort"
+[[failure_class]]
+id = 5
+name = "hang"
+[[failure_class]]
+id = 6
+name = "oom"
+[[failure_class]]
+id = 7
+name = "hardware-error"
+
+[[evidence_kind]]
+id = 0
+name = "normalised-log-template"
+class = "P1"
+[[evidence_kind]]
+id = 1
+name = "module-list"
+class = "P1"
+[[evidence_kind]]
+id = 2
+name = "structured-context"
+class = "P1"
+[[evidence_kind]]
+id = 3
+name = "raw-log-text"
+class = "P3"
+[[evidence_kind]]
+id = 4
+name = "artifact-reference"
+class = "P1"
+[[evidence_kind]]
+id = 5
+name = "core-dump"
+class = "P4"
+
+# ---------------------------------------------------------------------------
+# Fields
+# ---------------------------------------------------------------------------
+
+[[field]]
+path = "capsule.schema_major"
+key = 0
+type = "uint"
+class = "P0"
+required = true
+description = "Incompatible schema generation."
+
+[[field]]
+path = "capsule.schema_minor"
+key = 1
+type = "uint"
+class = "P0"
+required = true
+description = "Additive schema revision."
+
+[[field]]
+path = "capsule.profile"
+key = 2
+type = "uint"
+class = "P0"
+required = true
+description = "Profile identifier from the profile table."
+
+[[field]]
+path = "capsule.capsule_id"
+key = 3
+type = "bstr16"
+class = "P1"
+required = true
+description = "Random per-incident identifier; never derived from hardware identity."
+
+[[field]]
+path = "capsule.source_kind"
+key = 4
+type = "uint"
+class = "P0"
+required = true
+description = "Producer class that generated the capsule."
+
+[[field]]
+path = "capsule.severity"
+key = 5
+type = "uint"
+class = "P0"
+required = true
+description = "Producer-assigned severity, 0 (informational) to 4 (fatal)."
+
+[[field]]
+path = "capsule.component"
+key = 6
+type = "map"
+class = "P0"
+required = true
+description = "Failing component identity."
+
+[[field]]
+path = "capsule.system"
+key = 7
+type = "map"
+class = "P1"
+required = true
+description = "System identity summary."
+
+[[field]]
+path = "capsule.event"
+key = 8
+type = "map"
+class = "P0"
+required = true
+description = "The failure event itself."
+
+[[field]]
+path = "capsule.frames"
+key = 9
+type = "array"
+class = "P0"
+required = true
+description = "Normalised stack frames, most recent first."
+
+[[field]]
+path = "capsule.evidence"
+key = 10
+type = "array"
+class = "P1"
+required = true
+description = "Priority-ordered evidence items."
+
+[[field]]
+path = "capsule.fingerprints"
+key = 11
+type = "map"
+class = "P0"
+required = true
+description = "Strict and family fingerprints."
+
+[[field]]
+path = "capsule.privacy_manifest"
+key = 12
+type = "map"
+class = "P0"
+required = true
+description = "What the producer included, excluded and redacted."
+
+[[field]]
+path = "capsule.critical_features"
+key = 13
+type = "uint"
+class = "P0"
+required = true
+description = "Bitmap of critical features; a reader that does not understand a set bit must fail closed."
+
+[[field]]
+path = "capsule.time_info"
+key = 14
+type = "map"
+class = "P1"
+required = false
+description = "Coarse timing information."
+
+[[field]]
+path = "capsule.routing_hints"
+key = 15
+type = "map"
+class = "P1"
+required = false
+description = "Producer suggestions for triage routing."
+
+[[field]]
+path = "component.kind"
+key = 0
+type = "uint"
+class = "P0"
+required = true
+description = "0 kernel, 1 kernel-module, 2 package, 3 application, 4 service."
+
+[[field]]
+path = "component.package"
+key = 1
+type = "tstr"
+class = "P0"
+required = false
+description = "Package namespace/name."
+
+[[field]]
+path = "component.version"
+key = 2
+type = "tstr"
+class = "P0"
+required = false
+description = "Package version."
+
+[[field]]
+path = "component.build_id"
+key = 3
+type = "bstr"
+class = "P0"
+required = false
+description = "ELF build ID of the failing object."
+
+[[field]]
+path = "component.executable"
+key = 4
+type = "tstr"
+class = "P1"
+required = false
+description = "Executable basename only; never a full path."
+
+[[field]]
+path = "component.module"
+key = 5
+type = "tstr"
+class = "P0"
+required = false
+description = "Kernel module name."
+
+[[field]]
+path = "component.subsystem"
+key = 6
+type = "tstr"
+class = "P0"
+required = false
+description = "Subsystem label used for routing."
+
+[[field]]
+path = "system.architecture"
+key = 0
+type = "tstr"
+class = "P0"
+required = true
+description = "Machine architecture, e.g. x86_64."
+
+[[field]]
+path = "system.distro_family"
+key = 1
+type = "tstr"
+class = "P1"
+required = false
+description = "Distribution family."
+
+[[field]]
+path = "system.distro_release"
+key = 2
+type = "tstr"
+class = "P1"
+required = false
+description = "Distribution release."
+
+[[field]]
+path = "system.kernel_release"
+key = 3
+type = "tstr"
+class = "P0"
+required = false
+description = "Kernel release string."
+
+[[field]]
+path = "system.kernel_build_id"
+key = 4
+type = "bstr"
+class = "P0"
+required = false
+description = "Kernel build ID."
+
+[[field]]
+path = "system.taint"
+key = 5
+type = "uint"
+class = "P1"
+required = false
+description = "Kernel taint mask."
+
+[[field]]
+path = "system.hardware"
+key = 6
+type = "map"
+class = "P1"
+required = false
+description = "Coarse hardware summary; never serials or persistent device identity."
+
+[[field]]
+path = "hardware.cpu_family"
+key = 0
+type = "tstr"
+class = "P1"
+required = false
+description = "CPU vendor and family, not a serial or unique identifier."
+
+[[field]]
+path = "hardware.gpu_class"
+key = 1
+type = "tstr"
+class = "P1"
+required = false
+description = "GPU model family."
+
+[[field]]
+path = "hardware.pci_ids"
+key = 2
+type = "array"
+class = "P1"
+required = false
+description = "Diagnostic PCI vendor:device identifiers."
+
+[[field]]
+path = "hardware.firmware_version"
+key = 3
+type = "tstr"
+class = "P1"
+required = false
+description = "Firmware version where diagnostically relevant."
+
+[[field]]
+path = "event.failure_class"
+key = 0
+type = "uint"
+class = "P0"
+required = true
+description = "Failure class from the failure_class table."
+
+[[field]]
+path = "event.signal"
+key = 1
+type = "int"
+class = "P0"
+required = false
+description = "Signal number or exit status."
+
+[[field]]
+path = "event.reason"
+key = 2
+type = "tstr"
+class = "P0"
+required = false
+description = "Structured, enumerated reason string; never free-form log text."
+
+[[field]]
+path = "event.sequence"
+key = 3
+type = "uint"
+class = "P1"
+required = false
+description = "Occurrence-local sequence number."
+
+[[field]]
+path = "frame.build_id"
+key = 0
+type = "bstr"
+class = "P0"
+required = false
+description = "Build ID of the object owning the frame."
+
+[[field]]
+path = "frame.symbol"
+key = 1
+type = "tstr"
+class = "P0"
+required = false
+description = "Normalised symbol name."
+
+[[field]]
+path = "frame.offset"
+key = 2
+type = "uint"
+class = "P0"
+required = false
+description = "Module-relative offset; absolute virtual addresses are prohibited."
+
+[[field]]
+path = "frame.module"
+key = 3
+type = "tstr"
+class = "P0"
+required = false
+description = "Module or object identity."
+
+[[field]]
+path = "evidence.kind"
+key = 0
+type = "uint"
+class = "P0"
+required = true
+description = "Evidence kind from the evidence_kind table."
+
+[[field]]
+path = "evidence.class"
+key = 1
+type = "uint"
+class = "P0"
+required = true
+description = "Producer-declared privacy class; the effective class is the maximum of this and the registry floor."
+
+[[field]]
+path = "evidence.priority"
+key = 2
+type = "uint"
+class = "P0"
+required = true
+description = "Diagnostic priority; lower values are dropped first by the evidence budget."
+
+[[field]]
+path = "evidence.value"
+key = 3
+type = "any"
+class = "P1"
+required = true
+description = "Evidence payload; interpretation depends on kind."
+
+[[field]]
+path = "evidence.source_hash"
+key = 4
+type = "bstr"
+class = "P0"
+required = false
+description = "Hash of the source content this evidence was derived from."
+
+[[field]]
+path = "fingerprints.strict"
+key = 0
+type = "bstr32"
+class = "P0"
+required = true
+description = "SHA-256 over deterministic CBOR of the strict material."
+
+[[field]]
+path = "fingerprints.family"
+key = 1
+type = "bstr32"
+class = "P0"
+required = true
+description = "SHA-256 over deterministic CBOR of the family material."
+
+[[field]]
+path = "fingerprints.evidence"
+key = 2
+type = "bstr32"
+class = "P0"
+required = false
+description = "Hash binding the evidence array to the capsule."
+
+[[field]]
+path = "privacy_manifest.max_class"
+key = 0
+type = "uint"
+class = "P0"
+required = true
+description = "Highest effective class present in the capsule."
+
+[[field]]
+path = "privacy_manifest.included"
+key = 1
+type = "array"
+class = "P0"
+required = true
+description = "Category identifiers included, for the pre-transfer user preview."
+
+[[field]]
+path = "privacy_manifest.excluded"
+key = 2
+type = "array"
+class = "P0"
+required = true
+description = "Category identifiers deliberately excluded."
+
+[[field]]
+path = "privacy_manifest.redactions"
+key = 3
+type = "uint"
+class = "P0"
+required = true
+description = "Count of values the redactor removed or tokenised."
+
+[[field]]
+path = "privacy_manifest.dropped_evidence"
+key = 4
+type = "uint"
+class = "P0"
+required = true
+description = "Count of evidence items dropped by the profile budget."
+
+[[field]]
+path = "time_info.uptime_bucket"
+key = 0
+type = "uint"
+class = "P1"
+required = false
+description = "Coarse uptime bucket, not a precise timestamp."
+
+[[field]]
+path = "time_info.day"
+key = 1
+type = "uint"
+class = "P1"
+required = false
+description = "Days since the Unix epoch; deliberately day-granular."
+
+[[field]]
+path = "routing_hints.subsystem"
+key = 0
+type = "tstr"
+class = "P0"
+required = false
+description = "Suggested subsystem."
+
+[[field]]
+path = "routing_hints.project"
+key = 1
+type = "tstr"
+class = "P0"
+required = false
+description = "Suggested upstream project identifier."
+
+# ---------------------------------------------------------------------------
+# Categories used by the privacy manifest and the user-facing preview
+# ---------------------------------------------------------------------------
+
+[[category]]
+id = 0
+name = "component-identity"
+[[category]]
+id = 1
+name = "stack-trace"
+[[category]]
+id = 2
+name = "kernel-version"
+[[category]]
+id = 3
+name = "distro-version"
+[[category]]
+id = 4
+name = "hardware-class"
+[[category]]
+id = 5
+name = "module-list"
+[[category]]
+id = 6
+name = "username-or-paths"
+[[category]]
+id = 7
+name = "hostname-or-network"
+[[category]]
+id = 8
+name = "process-arguments"
+[[category]]
+id = 9
+name = "environment"
+[[category]]
+id = 10
+name = "file-contents"
+[[category]]
+id = 11
+name = "raw-logs"
+[[category]]
+id = 12
+name = "core-dump"

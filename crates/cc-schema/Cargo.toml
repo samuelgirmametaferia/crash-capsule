@@ -1,0 +1,16 @@
+[package]
+name = "cc-schema"
+description = "Crash Capsule wire keys, profiles and privacy floors, generated from the specification registry."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[build-dependencies]
+toml = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/cc-schema",
+    "crates/cc-canonical",
+    "crates/cc-fingerprint",
+    "crates/cc-capsule",
+    "crates/cc-vectors",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/samuelgirmametaferia/crash-capsule"
+
+[workspace.dependencies]
+cc-schema = { path = "crates/cc-schema" }
+cc-canonical = { path = "crates/cc-canonical" }
+cc-fingerprint = { path = "crates/cc-fingerprint" }
+cc-capsule = { path = "crates/cc-capsule" }
+sha2 = "0.10"
+thiserror = "1.0"
+toml = "0.8"
+hex = "0.4"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+panic = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+indexing_slicing = "warn"

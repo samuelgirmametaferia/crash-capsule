@@ -1,0 +1,44 @@
+; Crash Capsule optical transport envelope (normative for the MVP monochrome mode).
+;
+; Layering, outermost last:
+;
+;   capsule (deterministic CBOR)
+;     -> zstd
+;     -> COSE authenticated/encrypted payload
+;     -> source symbols of fixed size
+;     -> outer Reed-Solomon repair symbols
+;     -> frame = header + symbol, drawn as a QR code with its own inner ECC
+;
+; Rules the decoder depends on:
+;
+;   1. The sender loops source and repair symbols indefinitely. There is no final
+;      frame, and the receiver MUST NOT require catching any particular frame.
+;   2. FEC is not integrity. A stream that reassembles is still rejected unless the
+;      COSE verification over the reassembled payload succeeds.
+;   3. A frame whose header does not match the session the receiver is assembling is
+;      discarded, not merged.
+;   4. Receivers MUST reject blurred, transition-contaminated, excessively skewed or
+;      otherwise low-quality frames rather than feeding uncertain bits into the FEC
+;      decoder.
+;   5. A dynamic payload MUST NOT be used to open a URL. The static bootstrap QR is the
+;      only place a URL may appear, and it is a fixed, verified endpoint.
+
+visual-frame = {
+  0 => 1,               ; envelope version
+  1 => bstr .size 8,    ; session_id, random per transfer
+  2 => uint,            ; total number of source symbols
+  3 => uint,            ; symbol size in bytes
+  4 => uint,            ; symbol index; >= total means a repair symbol
+  5 => bstr,            ; symbol payload
+  6 => uint,            ; payload_len, total compressed+encrypted length
+  7 => fec-scheme,
+  8 => bstr .size 4,    ; truncated SHA-256 of the reassembled payload, a fast pre-check
+  ? 9 => uint,          ; profile id, so a receiver can size buffers before assembly
+  * uint => any
+}
+
+fec-scheme = 0 / 1      ; 0 none (single-symbol payloads), 1 Reed-Solomon over GF(256)
+
+; The static bootstrap QR is not a frame: it is a short ASCII URL to a fixed decoder
+; endpoint, optionally with a panic-minimal capsule in the fragment. It never carries
+; P2 or higher material.
